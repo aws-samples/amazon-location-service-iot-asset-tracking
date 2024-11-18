@@ -211,9 +211,9 @@ When a device sends a position to the IoT Core topic, it includes the device ID 
 
 The frontend application subscribes to the AppSync Events API using the device ID as the channel name. This way, the application receives only the messages for the devices it is interested in.
 
-The WebSocket API is secured using IAM. The Lambda function that pushes updates to the AppSync Events API has an IAM role that allows it to publish messages to the WebSocket API. Requests to the WebSocket API are signed using SigV4 ([const { Logger } = require('@aws-lambda-powertools/logger');](https://github.com/aws-samples/amazon-location-service-iot-asset-tracking/blob/f2e712cede640ae614fcf7e60a31830d2263aae2/assets/InfraStack.template.yaml#L197-L272)).
+The WebSocket API is secured using IAM. The Lambda function that pushes updates to the AppSync Events API has an IAM role that allows it to publish messages to the WebSocket API. Requests to the WebSocket API are signed using SigV4 ([see code](https://github.com/aws-samples/amazon-location-service-iot-asset-tracking/blob/8344f9d46c46649f8640f7bc61980ff20f67c244/assets/InfraStack.template.yaml#L197-L271)).
 
-Likewise, the frontend application obtains temporary credentials using the Cognito Identity Pool ID and uses these credentials to sign requests to connect and subscribe to the WebSocket API ([see code](https://github.com/aws-samples/amazon-location-service-iot-asset-tracking/blob/f2e712cede640ae614fcf7e60a31830d2263aae2/src/hooks/useTracker.ts#L183-L215)).
+Likewise, the frontend application obtains temporary credentials using the Cognito Identity Pool ID and uses these credentials to sign requests to connect and subscribe to the WebSocket API ([see code](https://github.com/aws-samples/amazon-location-service-iot-asset-tracking/blob/8344f9d46c46649f8640f7bc61980ff20f67c244/src/hooks/useTracker.ts#L183-L214)).
 
 For a more turnkey solution, you can use the [AWS Amplify](https://docs.amplify.aws/) library to connect to the AppSync Events API in a few lines of code.
 
