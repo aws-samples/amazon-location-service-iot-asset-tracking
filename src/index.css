@@ -1,0 +1,7 @@
+body,
+html,
+body::after,
+body::before {
+  margin: 0;
+  padding: 0;
+}

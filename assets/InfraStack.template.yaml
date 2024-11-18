@@ -1,0 +1,365 @@
+Resources:
+  Tracker:
+    Type: AWS::Location::Tracker
+    Properties:
+      TrackerName: trackerAsset01
+      PositionFiltering: AccuracyBased
+      EventBridgeEnabled: true
+  
+  WebsocketAPI:
+    Type: AWS::AppSync::Api
+    Properties:
+      EventConfig:
+        AuthProviders:
+          - AuthType: AWS_IAM
+        ConnectionAuthModes:
+          - AuthType: AWS_IAM
+        DefaultPublishAuthModes:
+          - AuthType: AWS_IAM
+        DefaultSubscribeAuthModes:
+          - AuthType: AWS_IAM
+      Name: trackerAssetWebsocketAPI
+  
+  WebsocketAPINamespace:
+    Type: AWS::AppSync::ChannelNamespace
+    Properties:
+      ApiId: !GetAtt WebsocketAPI.ApiId
+      Name: asset-tracker
+  
+  IdentityPoolEC8A1A0D:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      AllowUnauthenticatedIdentities: true
+      CognitoIdentityProviders: []
+  
+  IdentityPoolAuthenticatedRole42131CF5:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPoolEC8A1A0D
+              ForAnyValue:StringLike:
+                'cognito-identity.amazonaws.com:amr': authenticated
+      Description: !Join ['', ['Default Authenticated Role for Identity Pool ', !GetAtt IdentityPoolEC8A1A0D.Name]]
+  
+  IdentityPoolUnauthenticatedRole68AEFF8B:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPoolEC8A1A0D
+              ForAnyValue:StringLike:
+                'cognito-identity.amazonaws.com:amr': unauthenticated
+      Description: !Join ['', ['Default Unauthenticated Role for Identity Pool ', !GetAtt IdentityPoolEC8A1A0D.Name]]
+  
+  IdentityPoolDefaultRoleAttachmentD81AFC39:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPoolEC8A1A0D
+      Roles:
+        authenticated: !GetAtt IdentityPoolAuthenticatedRole42131CF5.Arn
+        unauthenticated: !GetAtt IdentityPoolUnauthenticatedRole68AEFF8B.Arn
+  
+  locationMapsViewPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - geo-maps:GetTile
+            Resource: !Sub 'arn:aws:geo-maps:${AWS::Region}::provider/default'
+      PolicyName: locationMapsViewPolicy
+      Roles:
+        - !Ref IdentityPoolUnauthenticatedRole68AEFF8B
+
+  websocketServicePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - appsync:EventSubscribe
+              - appsync:EventConnect
+              - appsync:EventPublish
+            Resource:
+              - !Join 
+                - ''
+                - - 'arn:aws:appsync:'
+                  - !Ref AWS::Region
+                  - ':'
+                  - !Ref AWS::AccountId
+                  - ':apis/'
+                  - !GetAtt WebsocketAPI.ApiId
+              - !Join 
+                - ''
+                - - 'arn:aws:appsync:'
+                  - !Ref AWS::Region
+                  - ':'
+                  - !Ref AWS::AccountId
+                  - ':apis/'
+                  - !GetAtt WebsocketAPI.ApiId
+                  - '/*'
+      PolicyName: websocketServicePolicy
+      Roles:
+        - !Ref IdentityPoolUnauthenticatedRole68AEFF8B
+  
+  ErrorLogGroupB9A57448:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 1
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+  
+  IotTrackerRole827EEDA4:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: iot.amazonaws.com
+            Action: sts:AssumeRole
+      Description: IAM Role that allows IoT Core to update a Tracker
+      Policies:
+        - PolicyName: allowTracker
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: geo:BatchUpdateDevicePosition
+                Resource: !Join 
+                  - ''
+                  - - 'arn:aws:geo:'
+                    - !Ref AWS::Region
+                    - ':'
+                    - !Ref AWS::AccountId
+                    - ':tracker/trackerAsset01'
+  
+  IotTrackerRoleDefaultPolicy5D4F904E:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: !GetAtt ErrorLogGroupB9A57448.Arn
+      PolicyName: IotTrackerRoleDefaultPolicy5D4F904E
+      Roles:
+        - !Ref IotTrackerRole827EEDA4
+  
+  TopicRule:
+    Type: AWS::IoT::TopicRule
+    Properties:
+      TopicRulePayload:
+        Actions:
+          - Location:
+              DeviceId: ${deviceId}
+              Latitude: ${latitude}
+              Longitude: ${longitude}
+              RoleArn: !GetAtt IotTrackerRole827EEDA4.Arn
+              TrackerName: trackerAsset01
+        AwsIotSqlVersion: '2016-03-23'
+        ErrorAction:
+          CloudwatchLogs:
+            LogGroupName: !Ref ErrorLogGroupB9A57448
+            RoleArn: !GetAtt IotTrackerRole827EEDA4.Arn
+        Sql: SELECT * FROM 'assets/tracker'
+      RuleName: AssetTrackingRule
+  
+  ProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: asset-tracker-events-processor
+      Code:
+        ZipFile: |
+          const { Logger } = require('@aws-lambda-powertools/logger');
+          const { HttpRequest } = require('@smithy/protocol-http');
+          const { SignatureV4 } = require('@smithy/signature-v4');
+          const { Hash } = require('@smithy/hash-node');
+          const { fromNodeProviderChain } = require('@aws-sdk/credential-providers');
+
+          const logger = new Logger();
+          const signer = new SignatureV4({
+            credentials: fromNodeProviderChain(),
+            service: 'appsync',
+            region: process.env.AWS_REGION,
+            sha256: Hash.bind(null, "sha256"),
+          });
+
+          const transformKeys = (obj) => ({
+            eventType: obj.EventType,
+            trackerName: obj.TrackerName,
+            deviceId: obj.DeviceId,
+            sampleTime: obj.SampleTime,
+            receivedTime: obj.ReceivedTime,
+            position: obj.Position
+          });
+
+          const buildHttpRequest = (event) => {
+            const url = new URL(process.env.WEBSOCKET_API_URL);
+            const deviceId = event.detail.DeviceId;
+            const channelName = `${process.env.ASSET_TRACKER_NAMESPACE}/${deviceId}`;
+            const transformedDetail = transformKeys(event.detail);
+
+            logger.debug('Building request', { channelName, transformedDetail });
+
+            return new HttpRequest({
+              hostname: url.hostname,
+              path: url.pathname,
+              body: JSON.stringify({
+                channel: channelName,
+                events: [JSON.stringify(transformedDetail)]
+              }),
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                host: url.hostname,
+              },
+            });
+          };
+
+          exports.handler = async (event) => {
+            logger.logEventIfEnabled(event);
+            
+            const httpRequest = buildHttpRequest(event);
+            const signedHttpRequest = await signer.sign(httpRequest);
+
+            try {
+              const result = await fetch(process.env.WEBSOCKET_API_URL, {
+                headers: new Headers(signedHttpRequest.headers),
+                body: signedHttpRequest.body,
+                method: signedHttpRequest.method,
+              });
+
+              if (!result.ok) {
+                throw new Error(`HTTP error! status: ${result.status}`);
+              }
+
+              const json = await result.json();
+              logger.debug('Request successful', { response: json });
+
+              return {
+                statusCode: 200,
+                body: JSON.stringify('Hello from Lambda!')
+              };
+            } catch (error) {
+              logger.error('Failed to send request to AppSync', { error });
+              throw error;
+            }
+          };
+      Handler: index.handler
+      Role: !GetAtt ProcessorFunctionRole.Arn
+      Runtime: nodejs20.x
+      Timeout: 15
+      MemorySize: 256
+      Layers:
+        - !Join 
+          - ''
+          - - 'arn:aws:lambda:'
+            - !Ref AWS::Region
+            - ':094274105915:layer:AWSLambdaPowertoolsTypeScriptV2:14'
+      Environment:
+        Variables:
+          LOG_LEVEL: DEBUG
+          POWERTOOLS_LOGGER_LOG_EVENT: 'true'
+          WEBSOCKET_API_URL: !Join ['', ['https://', !GetAtt WebsocketAPI.Dns.Http, '/event']]
+          ASSET_TRACKER_NAMESPACE: asset-tracker
+  
+  ProcessorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AppSyncAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - appsync:EventConnect
+                  - appsync:EventPublish
+                Resource:
+                  - !Join 
+                    - ''
+                    - - 'arn:aws:appsync:'
+                      - !Ref AWS::Region
+                      - ':'
+                      - !Ref AWS::AccountId
+                      - ':apis/'
+                      - !GetAtt WebsocketAPI.ApiId
+                      - '/*'
+  
+  ProcessorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['', ['/aws/lambda/', !Ref ProcessorFunction]]
+      RetentionInDays: 7
+    DeletionPolicy: Delete
+  
+  LocationEventsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: asset-tracker-position-events
+      Description: Capture all Location Service device position events
+      EventPattern:
+        source:
+          - aws.geo
+        detail-type:
+          - Location Device Position Event
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ProcessorFunction.Arn
+          Id: ProcessLocationEvents
+  
+  LocationEventsRulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ProcessorFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LocationEventsRule.Arn
+
+Outputs:
+  Region:
+    Value: !Ref AWS::Region
+  IdentityPoolId:
+    Value: !Ref IdentityPoolEC8A1A0D
+  WebsocketHttpEndpoint:
+    Value: !GetAtt WebsocketAPI.Dns.Http
+  WebsocketRealtimeEndpoint:
+    Value: !GetAtt WebsocketAPI.Dns.Realtime
+  TrackerName:
+    Value: trackerAsset01
+
+Conditions: {}
+Parameters: {}
