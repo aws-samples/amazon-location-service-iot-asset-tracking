@@ -201,6 +201,22 @@ To clean up the resources created in this project, you can delete the CloudForma
 aws cloudformation delete-stack --stack-name IoTTracker
 ```
 
+## Additional details
+
+AWS AppSync Events lets you create secure and performant serverless WebSocket APIs that can broadcast real-time event data to millions of subscribers, without you having to manage connections or resource scaling.
+
+In this sample application we have a single namespace called `asset-tracker` and shared by all devices, with each one having its own channel. This allows you to broadcast messages to all devices or to a specific device. The channel name is composed of the namespace and the device ID, separated by a slash, like `asset-tracker/thing123`.
+
+When a device sends a position to the IoT Core topic, it includes the device ID in the message. This device ID is used both for the Amazon Location Service Tracker and the AppSync Events API channel.
+
+The frontend application subscribes to the AppSync Events API using the device ID as the channel name. This way, the application receives only the messages for the devices it is interested in.
+
+The WebSocket API is secured using IAM. The Lambda function that pushes updates to the AppSync Events API has an IAM role that allows it to publish messages to the WebSocket API. Requests to the WebSocket API are signed using SigV4.
+
+Likewise, the frontend application obtains temporary credentials using the Cognito Identity Pool ID and uses these credentials to sign requests to connect and subscribe to the WebSocket API.
+
+For a more turnkey solution, you can use the [AWS Amplify](https://docs.amplify.aws/) library to connect to the AppSync Events API in a few lines of code.
+
 ## License
 
 This library is licensed under the MIT-0 License. See the LICENSE file.
