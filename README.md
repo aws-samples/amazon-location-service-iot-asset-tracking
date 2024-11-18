@@ -6,9 +6,13 @@ This project demonstrates how to build the foundation for an asset tracking appl
 
 ## Overview of solution
 
-![architecture diagram](assets/images/architecture-diagram.png)
+![architecture diagram](assets/images/architecture.svg)
 
-When a device sends a position to the IoT Core topic `assets/tracker`, the message is sent to an Amazon Location Service Tracker using the direct integration between IoT Core and Amazon Location Service.
+1. A device sends its position to an IoT Core topic named `assets/tracker`.
+2. An IoT Rule forwards the message to an Amazon Location Service Tracker.
+3. The Tracker replicates the device position to an Amazon EventBridge event bus.
+4. An EventBridge rule triggers a Lambda function that updates the device position in an AppSync Events API.
+5. Frontend applications subscribed to the AppSync Events API receive the device position in real-time and display it on a map, also provided by Amazon Location Service.
 
 ### Prerequisites
 
