@@ -33,14 +33,14 @@ npm ci
 
 ## Deploy the infrastructure
 
-Next, create the backend resources by deploying the CloudFormation template named `InfraStack.template.json` found in the `assets` folder.
+Next, create the backend resources by deploying the CloudFormation template named `InfraStack.template.yaml` found in the `assets` folder.
 
 ### Deploy using the AWS CLI (preferred)
 
 If you have the AWS CLI installed, you can run the following command to deploy the CloudFormation stack:
 
 ```bash
-aws cloudformation create-stack --template-body file://assets/InfraStack.template.json --stack-name IoTTracker --capabilities CAPABILITY_IAM
+aws cloudformation create-stack --template-body file://assets/InfraStack.template.yaml --stack-name IoTTracker --capabilities CAPABILITY_IAM
 ```
 
 Once the CloudFormation stack is created, you can get the values for the frontend application by running the following command:
